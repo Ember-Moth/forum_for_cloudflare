@@ -625,7 +625,7 @@ export default {
 					<p>此链接将在 1 小时后失效。</p>
 				`;
 
-				ctx.waitUntil(sendEmail(email, '密码重置请求', emailHtml).catch(console.error));
+				ctx.waitUntil(sendEmail(email, '密码重置请求', emailHtml, env).catch(console.error));
 				return jsonResponse({ success: true });
 			} catch (e) {
 				return handleError(e);
@@ -734,7 +734,7 @@ export default {
 					<a href="${verifyLink}">确认更换</a>
 				`;
 
-				ctx.waitUntil(sendEmail(new_email, '确认更换邮箱', emailHtml).catch(console.error));
+				ctx.waitUntil(sendEmail(new_email, '确认更换邮箱', emailHtml, env).catch(console.error));
 				return jsonResponse({ success: true });
 			} catch (e) {
 				return handleError(e);
@@ -799,7 +799,7 @@ export default {
 							<h1>头像已更新</h1>
 							<p>您的头像已被管理员更新。</p>
 						`;
-						ctx.waitUntil(sendEmail(user.email, '您的头像已更新', emailHtml).catch(console.error));
+						ctx.waitUntil(sendEmail(user.email, '您的头像已更新', emailHtml, env).catch(console.error));
 					}
 				}
 				if (username) {
@@ -819,7 +819,7 @@ export default {
 							<p>您的用户名已被管理员修改为 <strong>${username}</strong>。</p>
 							<p>如有疑问，请联系管理员。</p>
 						`;
-						ctx.waitUntil(sendEmail(user.email, '您的用户名已修改', emailHtml).catch(console.error));
+						ctx.waitUntil(sendEmail(user.email, '您的用户名已修改', emailHtml, env).catch(console.error));
 					}
 				}
 				
@@ -955,7 +955,7 @@ export default {
 						<p>您的账户 (用户名: <strong>${user.username}</strong>) 已通过管理员手动验证。</p>
 						<p>您现在可以登录并使用所有功能。</p>
 					`;
-					ctx.waitUntil(sendEmail(user.email as string, '您的账户已通过验证', emailHtml).catch(console.error));
+					ctx.waitUntil(sendEmail(user.email as string, '您的账户已通过验证', emailHtml, env).catch(console.error));
 				}
 
 				return jsonResponse({ success });
@@ -992,7 +992,7 @@ export default {
 				`;
 
 				ctx.waitUntil(
-					sendEmail(user.email, '请验证您的邮箱', emailHtml)
+					sendEmail(user.email, '请验证您的邮箱', emailHtml, env)
 						.catch(err => console.error('[Background Email Error]', err))
 				);
 				
@@ -1055,7 +1055,7 @@ export default {
 							<p>您的账户 (用户名: <strong>${userToDelete.username}</strong>) 已被管理员删除。</p>
 							<p>如果您认为这是误操作，请联系管理员。</p>
 						`;
-						ctx.waitUntil(sendEmail(userToDelete.email as string, '您的账户已被删除', emailHtml).catch(console.error));
+						ctx.waitUntil(sendEmail(userToDelete.email as string, '您的账户已被删除', emailHtml, env).catch(console.error));
 					}
 				}
 
@@ -1233,7 +1233,7 @@ export default {
 				if (!to) return jsonResponse({ error: '缺少收件人地址' }, 400);
 
 				console.log('[DEBUG] Starting test email to:', to);
-				await sendEmail(to, '测试邮件', '<h1>你好</h1><p>这是一封测试邮件。</p>');
+				await sendEmail(to, '测试邮件', '<h1>你好</h1><p>这是一封测试邮件。</p>', env);
 				console.log('[DEBUG] Test email sent successfully');
 				
 				return jsonResponse({ success: true, message: '邮件已发送' });
@@ -1292,7 +1292,7 @@ export default {
 				`;
 
 				try {
-					await sendEmail(email, '请验证您的邮箱', emailHtml);
+					await sendEmail(email, '请验证您的邮箱', emailHtml, env);
 				} catch (e) {
 					console.error('[Registration Email Error]', e);
 					return jsonResponse({ error: '验证邮件发送失败，请检查邮箱地址是否正确。' }, 400);
@@ -1674,7 +1674,7 @@ export default {
 							<p><a href="${postUrl}">View Comment</a></p>
 							<p style="font-size:0.8em;color:#666;">You received this email because you are subscribed to notifications.</p>
 						`;
-						ctx.waitUntil(sendEmail(post.email, `New comment on: ${post.title}`, emailHtml).catch(console.error));
+						ctx.waitUntil(sendEmail(post.email, `New comment on: ${post.title}`, emailHtml, env).catch(console.error));
 					}
 
 					// 2. Notify Parent Comment Author (if replying to a comment)
@@ -1702,7 +1702,7 @@ export default {
 										<p><a href="${postUrl}">View Reply</a></p>
 										<p style="font-size:0.8em;color:#666;">You received this email because you are subscribed to notifications.</p>
 									`;
-									ctx.waitUntil(sendEmail(parentCommentUser.email, `New reply to your comment`, replyHtml).catch(console.error));
+									ctx.waitUntil(sendEmail(parentCommentUser.email, `New reply to your comment`, replyHtml, env).catch(console.error));
 								}
 							}
 						}

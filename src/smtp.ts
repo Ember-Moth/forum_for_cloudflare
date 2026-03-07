@@ -7,9 +7,15 @@ const SMTP_CONFIG = {
     hostname: 'smtp.exmail.qq.com',
     port: 465,
     user: 'i@2x.nz',
-    // In a real app, use environment secrets!
-    pass: 'd2pMDZXNmq4mjWyQ'
 };
+
+function getSMTPPassword(env?: { SMTP_PASS?: string }): string {
+    const pass = env?.SMTP_PASS;
+    if (!pass) {
+        throw new Error('环境变量缺少 SMTP_PASS');
+    }
+    return pass;
+}
 
 // Helper to check MX records via DNS-over-HTTPS (Cloudflare DNS)
 async function checkMX(email: string): Promise<boolean> {
@@ -115,8 +121,9 @@ function encodeHeader(str: string): string {
 }
 
 // SMTP Send Function
-async function sendViaSMTP(to: string, subject: string, htmlContent: string) {
+async function sendViaSMTP(to: string, subject: string, htmlContent: string, env?: { SMTP_PASS?: string }) {
     console.log(`[SMTP] Connecting to ${SMTP_CONFIG.hostname}:${SMTP_CONFIG.port}...`);
+    const smtpPass = getSMTPPassword(env);
     
     const socket = connect({ 
         hostname: SMTP_CONFIG.hostname, 
@@ -134,7 +141,7 @@ async function sendViaSMTP(to: string, subject: string, htmlContent: string) {
         await sendCommand(writer, reader, 'EHLO forum.2x.nz', 250);
         await sendCommand(writer, reader, 'AUTH LOGIN', 334);
         await sendCommand(writer, reader, btoa(SMTP_CONFIG.user), 334);
-        await sendCommand(writer, reader, btoa(SMTP_CONFIG.pass), 235);
+        await sendCommand(writer, reader, btoa(smtpPass), 235);
         await sendCommand(writer, reader, `MAIL FROM: <${SMTP_CONFIG.user}>`, 250);
         await sendCommand(writer, reader, `RCPT TO: <${to}>`, 250);
         await sendCommand(writer, reader, 'DATA', 354);
@@ -236,5 +243,5 @@ export async function sendEmail(to: string, subject: string, htmlContent: string
     }
 
     // Fallback to SMTP
-    await sendViaSMTP(to, subject, htmlContent);
+    await sendViaSMTP(to, subject, htmlContent, env);
 }

@@ -7,6 +7,7 @@ declare namespace Cloudflare {
 	}
 	interface Env {
 		forum_db: D1Database;
+        SMTP_PASS?: string;
 		TURNSTILE_SECRET_KEY?: string;
 	}
 }
