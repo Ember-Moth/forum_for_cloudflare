@@ -278,7 +278,9 @@ export function IndexPage() {
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
 					<div className="min-w-0">
 						<h1 className="text-2xl font-semibold tracking-tight">D1 Forum</h1>
-						<p className="break-all text-sm text-muted-foreground">开源： https://github.com/afoim/forum_for_cloudflare 基于 shadcn/ui + Tailwind 的多页应用（非 SPA），由 Cloudflare Workers 在边缘统一提供静态页面与 API。</p>
+						<p className="break-all text-sm text-muted-foreground">
+							开源：<a className="text-foreground underline" href="https://github.com/afoim/forum_for_cloudflare" target="_blank" rel="noopener noreferrer">https://github.com/afoim/forum_for_cloudflare</a> 基于 shadcn/ui + Tailwind 的多页应用（非 SPA），由 Cloudflare Workers 在边缘统一提供静态页面与 API。感谢 <a className="text-foreground underline" href="https://www.cloudflare.com" target="_blank" rel="noopener noreferrer">https://www.cloudflare.com</a> 提供的 CDN 与 DDoS 防护服务
+						</p>
 					</div>
 					<div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
 						<label className="text-sm text-muted-foreground" htmlFor="category-filter">
