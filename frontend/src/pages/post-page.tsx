@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ArrowLeft, Eye, EyeOff, Heart, MoreVertical, Pin, Pencil, Reply, Shield, Trash2, User, X } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Heart, Image, MoreVertical, Pin, Pencil, Reply, Shield, Trash2, User, X } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -31,6 +31,7 @@ export function PostPage() {
 	const [commentError, setCommentError] = React.useState('');
 	const [turnstileToken, setTurnstileToken] = React.useState('');
 	const [turnstileResetKey, setTurnstileResetKey] = React.useState(0);
+	const [uploadingImage, setUploadingImage] = React.useState(false);
 
 	const [isEditing, setIsEditing] = React.useState(false);
 	const [editTitle, setEditTitle] = React.useState('');
@@ -160,6 +161,46 @@ export function PostPage() {
 			);
 		} catch {
 			return;
+		}
+	}
+
+	async function uploadCommentImage(file: File) {
+		if (!user) {
+			window.location.href = '/login';
+			return;
+		}
+		const token = getToken();
+		if (!token) {
+			setCommentError('登录已过期，请重新登录');
+			return;
+		}
+		if (file.size > 500 * 1024) {
+			setCommentError('文件过大 (最大 500KB)');
+			return;
+		}
+
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('type', 'comment');
+		formData.append('post_id', postId || 'general');
+
+		setUploadingImage(true);
+		setCommentError('');
+		try {
+			const res = await fetch('/api/upload', {
+				method: 'POST',
+				headers: getSecurityHeaders('POST', null),
+				body: formData
+			});
+			const data = (await res.json()) as any;
+			if (!res.ok) throw new Error(data?.error || '上传失败');
+			const imageUrl = data.url;
+			const markdownImage = `![image](${imageUrl})`;
+			setNewComment((prev) => (prev ? `${prev}\n${markdownImage}` : markdownImage));
+		} catch (e: any) {
+			setCommentError(String(e?.message || e));
+		} finally {
+			setUploadingImage(false);
 		}
 	}
 
@@ -589,7 +630,29 @@ export function PostPage() {
 
 								<form className="space-y-3" onSubmit={submitComment}>
 									{commentError ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{commentError}</div> : null}
-									<Textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} rows={4} placeholder="写下你的评论..." />
+									<div className="space-y-2">
+										<div className="flex items-center justify-end">
+											<label className="cursor-pointer">
+												<input
+													type="file"
+													accept="image/*"
+													className="hidden"
+													onChange={(e) => {
+														const f = e.target.files?.[0];
+														if (f) uploadCommentImage(f);
+														e.target.value = '';
+													}}
+												/>
+												<Button type="button" variant="outline" size="sm" disabled={uploadingImage} asChild>
+													<span>
+														<Image className="h-4 w-4" />
+														<span className="sr-only">{uploadingImage ? '上传中...' : '上传图片'}</span>
+													</span>
+												</Button>
+											</label>
+										</div>
+										<Textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} rows={4} placeholder="写下你的评论..." />
+									</div>
 									<TurnstileWidget enabled={enabled} siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 									<div className="flex items-center gap-2">
 										<Button type="submit" disabled={commentLoading}>

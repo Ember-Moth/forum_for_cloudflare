@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Heart, MessageCircle, MoreVertical, Pin, RefreshCw, Search, Shield, Trash2, User, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Heart, Image, MessageCircle, MoreVertical, Pin, RefreshCw, Search, Shield, Trash2, User, X } from 'lucide-react';
 
 import { TurnstileWidget } from '@/components/turnstile';
 import { PageShell } from '@/components/page-shell';
@@ -40,6 +40,7 @@ export function IndexPage() {
 	const [createError, setCreateError] = React.useState('');
 	const [turnstileToken, setTurnstileToken] = React.useState('');
 	const [turnstileResetKey, setTurnstileResetKey] = React.useState(0);
+	const [uploadingImage, setUploadingImage] = React.useState(false);
 	const previewRef = React.useRef<HTMLDivElement | null>(null);
 	const [adminMenuPostId, setAdminMenuPostId] = React.useState<number | null>(null);
 	const [adminActionPostId, setAdminActionPostId] = React.useState<number | null>(null);
@@ -202,6 +203,46 @@ export function IndexPage() {
 			return;
 		} finally {
 			setAdminActionPostId(null);
+		}
+	}
+
+	async function uploadPostImage(file: File) {
+		if (!user) {
+			window.location.href = '/login';
+			return;
+		}
+		const token = getToken();
+		if (!token) {
+			setCreateError('登录已过期，请重新登录');
+			return;
+		}
+		if (file.size > 500 * 1024) {
+			setCreateError('文件过大 (最大 500KB)');
+			return;
+		}
+
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('type', 'post');
+		formData.append('post_id', 'new');
+
+		setUploadingImage(true);
+		setCreateError('');
+		try {
+			const res = await fetch('/api/upload', {
+				method: 'POST',
+				headers: getSecurityHeaders('POST', null),
+				body: formData
+			});
+			const data = (await res.json()) as any;
+			if (!res.ok) throw new Error(data?.error || '上传失败');
+			const imageUrl = data.url;
+			const markdownImage = `![image](${imageUrl})`;
+			setNewContent((prev) => (prev ? `${prev}\n${markdownImage}` : markdownImage));
+		} catch (e: any) {
+			setCreateError(String(e?.message || e));
+		} finally {
+			setUploadingImage(false);
 		}
 	}
 
@@ -406,10 +447,30 @@ export function IndexPage() {
 								<div className="space-y-2">
 									<div className="flex items-center justify-between gap-2">
 										<Label htmlFor="new-content">内容 (支持 Markdown)</Label>
-										<Button type="button" variant="outline" size="sm" onClick={() => setPreviewOpen((v) => !v)}>
-											{previewOpen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-											<span className="sr-only">{previewOpen ? '关闭预览' : '打开预览'}</span>
-										</Button>
+										<div className="flex items-center gap-2">
+											<label className="cursor-pointer">
+												<input
+													type="file"
+													accept="image/*"
+													className="hidden"
+													onChange={(e) => {
+														const f = e.target.files?.[0];
+														if (f) uploadPostImage(f);
+														e.target.value = '';
+													}}
+												/>
+												<Button type="button" variant="outline" size="sm" disabled={uploadingImage} asChild>
+													<span>
+														<Image className="h-4 w-4" />
+														<span className="sr-only">{uploadingImage ? '上传中...' : '上传图片'}</span>
+													</span>
+												</Button>
+											</label>
+											<Button type="button" variant="outline" size="sm" onClick={() => setPreviewOpen((v) => !v)}>
+												{previewOpen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+												<span className="sr-only">{previewOpen ? '关闭预览' : '打开预览'}</span>
+											</Button>
+										</div>
 									</div>
 									<Textarea id="new-content" value={newContent} onChange={(e) => setNewContent(e.target.value)} rows={8} required />
 								</div>

@@ -278,7 +278,7 @@ export default {
 					return jsonResponse({ error: 'File size too large (Max 500KB)' }, 400);
 				}
 
-				const imageUrl = await uploadImage(env as unknown as S3Env, file, userId, postId.toString(), type as 'post' | 'avatar');
+				const imageUrl = await uploadImage(env as unknown as S3Env, file, userId, postId.toString(), type as 'post' | 'avatar' | 'comment');
 				await security.logAudit(user.id, 'UPLOAD_IMAGE', 'image', imageUrl, { type, postId }, request);
 				
 				return jsonResponse({ success: true, url: imageUrl });
