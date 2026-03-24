@@ -187,13 +187,18 @@ export function PostPage() {
 		setUploadingImage(true);
 		setCommentError('');
 		try {
+			const headers = getSecurityHeaders('POST', null);
+			console.log('Upload headers:', headers); // Debug log
 			const res = await fetch('/api/upload', {
 				method: 'POST',
-				headers: getSecurityHeaders('POST', null),
+				headers: headers,
 				body: formData
 			});
 			const data = (await res.json()) as any;
-			if (!res.ok) throw new Error(data?.error || '上传失败');
+			if (!res.ok) {
+				console.error('Upload failed:', res.status, data); // Debug log
+				throw new Error(data?.error || '上传失败');
+			}
 			const imageUrl = data.url;
 			const markdownImage = `![image](${imageUrl})`;
 			setNewComment((prev) => (prev ? `${prev}\n${markdownImage}` : markdownImage));
