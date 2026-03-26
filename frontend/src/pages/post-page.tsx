@@ -539,6 +539,55 @@ export function PostPage() {
 								<CardTitle>评论</CardTitle>
 							</CardHeader>
 							<CardContent className="space-y-4">
+								{replyTo ? (
+									<div className="flex items-center justify-between rounded-md border bg-muted/30 p-2 text-sm">
+										<span>
+											回复 <span className="font-medium">{replyTo.username}</span>
+										</span>
+										<Button variant="ghost" size="sm" onClick={() => setReplyTo(null)}>
+											取消
+										</Button>
+									</div>
+								) : null}
+
+								<form className="space-y-3" onSubmit={submitComment}>
+									{commentError ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{commentError}</div> : null}
+									<div className="space-y-2">
+										<div className="flex items-center justify-end">
+											<label className="cursor-pointer">
+												<input
+													type="file"
+													accept="image/*"
+													className="hidden"
+													onChange={(e) => {
+														const f = e.target.files?.[0];
+														if (f) uploadCommentImage(f);
+														e.target.value = '';
+													}}
+												/>
+												<Button type="button" variant="outline" size="sm" disabled={uploadingImage} asChild>
+													<span>
+														<Image className="h-4 w-4" />
+														<span className="sr-only">{uploadingImage ? '上传中...' : '上传图片'}</span>
+													</span>
+												</Button>
+											</label>
+										</div>
+										<Textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} rows={4} placeholder="写下你的评论..." />
+									</div>
+									<TurnstileWidget enabled={enabled} siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+									<div className="flex items-center gap-2">
+										<Button type="submit" disabled={commentLoading}>
+											{commentLoading ? '发布中...' : '发布评论'}
+										</Button>
+										{!user ? (
+											<Button type="button" variant="outline" onClick={() => (window.location.href = '/login')}>
+												登录后评论
+											</Button>
+										) : null}
+									</div>
+								</form>
+
 								{comments.length === 0 ? (
 									<div className="text-sm text-muted-foreground">暂无评论</div>
 								) : (
@@ -637,55 +686,6 @@ export function PostPage() {
 										))}
 									</div>
 								)}
-
-								{replyTo ? (
-									<div className="flex items-center justify-between rounded-md border bg-muted/30 p-2 text-sm">
-										<span>
-											回复 <span className="font-medium">{replyTo.username}</span>
-										</span>
-										<Button variant="ghost" size="sm" onClick={() => setReplyTo(null)}>
-											取消
-										</Button>
-									</div>
-								) : null}
-
-								<form className="space-y-3" onSubmit={submitComment}>
-									{commentError ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{commentError}</div> : null}
-									<div className="space-y-2">
-										<div className="flex items-center justify-end">
-											<label className="cursor-pointer">
-												<input
-													type="file"
-													accept="image/*"
-													className="hidden"
-													onChange={(e) => {
-														const f = e.target.files?.[0];
-														if (f) uploadCommentImage(f);
-														e.target.value = '';
-													}}
-												/>
-												<Button type="button" variant="outline" size="sm" disabled={uploadingImage} asChild>
-													<span>
-														<Image className="h-4 w-4" />
-														<span className="sr-only">{uploadingImage ? '上传中...' : '上传图片'}</span>
-													</span>
-												</Button>
-											</label>
-										</div>
-										<Textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} rows={4} placeholder="写下你的评论..." />
-									</div>
-									<TurnstileWidget enabled={enabled} siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
-									<div className="flex items-center gap-2">
-										<Button type="submit" disabled={commentLoading}>
-											{commentLoading ? '发布中...' : '发布评论'}
-										</Button>
-										{!user ? (
-											<Button type="button" variant="outline" onClick={() => (window.location.href = '/login')}>
-												登录后评论
-											</Button>
-										) : null}
-									</div>
-								</form>
 							</CardContent>
 						</Card>
 					</>
