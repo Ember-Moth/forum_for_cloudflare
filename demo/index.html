@@ -1424,7 +1424,7 @@
 
                 const openPost = (post) => {
                     view.value = 'post';
-                    window.history.pushState({}, '', `/posts/${post.id}`);
+                    window.history.pushState({}, '', `/post?id=${post.id}`);
                     fetchPost(post.id);
                 };
 

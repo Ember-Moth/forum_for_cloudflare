@@ -1855,20 +1855,6 @@ export default {
 
 		if (method === 'GET' && !url.pathname.startsWith('/api')) {
 			const pathname = url.pathname;
-			const postMatch = pathname.match(/^\/posts\/(\d+)$/);
-			if (postMatch) {
-				const redirectUrl = new URL(request.url);
-				redirectUrl.pathname = '/post';
-				redirectUrl.search = `?id=${postMatch[1]}`;
-				return Response.redirect(redirectUrl.toString(), 302);
-			}
-			const postAltMatch = pathname.match(/^\/post\/(\d+)$/);
-			if (postAltMatch) {
-				const redirectUrl = new URL(request.url);
-				redirectUrl.pathname = '/post';
-				redirectUrl.search = `?id=${postAltMatch[1]}`;
-				return Response.redirect(redirectUrl.toString(), 302);
-			}
 
 			if (!(env as any).ASSETS?.fetch) return new Response('Not Found', { status: 404 });
 			const mapped =

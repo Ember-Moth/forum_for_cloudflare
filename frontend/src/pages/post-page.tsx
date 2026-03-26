@@ -47,12 +47,8 @@ export function PostPage() {
 
 	function getPostIdFromPath() {
 		const params = new URLSearchParams(window.location.search);
-		const q = params.get('id') || params.get('post_id');
-		if (q && /^\d+$/.test(q)) return q;
-		const m = window.location.pathname.match(/^\/posts\/(\d+)$/);
-		if (m) return m[1];
-		const m2 = window.location.pathname.match(/^\/post\/(\d+)$/);
-		return m2 ? m2[1] : null;
+		const q = params.get('id');
+		return q && /^\d+$/.test(q) ? q : null;
 	}
 
 	const postId = getPostIdFromPath();
