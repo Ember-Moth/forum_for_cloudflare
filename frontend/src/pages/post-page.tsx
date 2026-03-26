@@ -40,6 +40,7 @@ export function PostPage() {
 	const [editUploadingImage, setEditUploadingImage] = React.useState(false);
 	const [editError, setEditError] = React.useState('');
 	const contentRef = React.useRef<HTMLDivElement | null>(null);
+	const commentsRef = React.useRef<HTMLDivElement | null>(null);
 	const commentSelectionRef = React.useRef<{ start: number; end: number } | null>(null);
 	const commentTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
 	const commentImageInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -99,7 +100,15 @@ export function PostPage() {
 		highlightCodeBlocks(el);
 		const cleanup = attachFancybox(el);
 		return cleanup;
-	}, [post, comments.length, isEditing]);
+	}, [post, isEditing]);
+
+	React.useEffect(() => {
+		const el = commentsRef.current;
+		if (!el) return;
+		highlightCodeBlocks(el);
+		const cleanup = attachFancybox(el);
+		return cleanup;
+	}, [comments]);
 
 	React.useEffect(() => {
 		if (!adminMenuOpen) return;
@@ -723,7 +732,7 @@ export function PostPage() {
 								{comments.length === 0 ? (
 									<div className="text-sm text-muted-foreground">暂无评论</div>
 								) : (
-									<div className="space-y-3">
+									<div ref={commentsRef} className="space-y-3">
 										{organizeComments(comments).map((c) => (
 											<div key={c.id} className="rounded-md border p-3">
 												<div className="flex items-center justify-between gap-2">
