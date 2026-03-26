@@ -22,13 +22,15 @@ export function PostPage() {
 
 	const [post, setPost] = React.useState<Post | null>(null);
 	const [comments, setComments] = React.useState<Comment[]>([]);
-	const [loading, setLoading] = React.useState(true);
+	const [initialLoading, setInitialLoading] = React.useState(true);
+	const [commentsLoading, setCommentsLoading] = React.useState(false);
 	const [error, setError] = React.useState('');
 
 	const [newComment, setNewComment] = React.useState('');
 	const [replyTo, setReplyTo] = React.useState<Comment | null>(null);
 	const [commentLoading, setCommentLoading] = React.useState(false);
 	const [commentError, setCommentError] = React.useState('');
+	const [commentSortOption, setCommentSortOption] = React.useState('likes_desc');
 	const [turnstileToken, setTurnstileToken] = React.useState('');
 	const [turnstileResetKey, setTurnstileResetKey] = React.useState(0);
 	const [uploadingCommentImage, setUploadingCommentImage] = React.useState(false);
@@ -59,33 +61,76 @@ export function PostPage() {
 
 	const postId = getPostIdFromPath();
 	const userId = user?.id ?? null;
+	const didInitialLoadRef = React.useRef(false);
 
-	const refresh = React.useCallback(async () => {
+	const getCommentSortParams = React.useCallback((sortOption: string) => {
+		const sortBy = sortOption === 'likes_desc' ? 'likes' : 'time';
+		const sortDir = sortOption === 'time_asc' ? 'asc' : 'desc';
+		return `?sort_by=${encodeURIComponent(sortBy)}&sort_dir=${encodeURIComponent(sortDir)}`;
+	}, []);
+
+	const refreshPost = React.useCallback(async () => {
 		if (!postId) {
 			setError('帖子不存在');
-			setLoading(false);
+			setPost(null);
 			return;
 		}
-		setLoading(true);
-		setError('');
-		try {
-			const userParam = userId ? `?user_id=${userId}` : '';
-			const p = await apiFetch<Post>(`/posts/${postId}${userParam}`);
-			const cs = await apiFetch<Comment[]>(`/posts/${postId}/comments`);
-			setPost(p);
-			setComments(cs);
-			setEditTitle(p.title);
-			setEditContent(p.content);
-		} catch (e: any) {
-			setError(String(e?.message || e));
-		} finally {
-			setLoading(false);
+		const userParam = userId ? `?user_id=${userId}` : '';
+		const nextPost = await apiFetch<Post>(`/posts/${postId}${userParam}`);
+		setPost(nextPost);
+		setEditTitle(nextPost.title);
+		setEditContent(nextPost.content);
+	}, [postId, userId]);
+
+	const refreshComments = React.useCallback(
+		async (sortOption = commentSortOption, showLoading = true) => {
+			if (!postId) {
+				setError('帖子不存在');
+				setComments([]);
+				return;
+			}
+			if (showLoading) setCommentsLoading(true);
+			try {
+				const nextComments = await apiFetch<Comment[]>(`/posts/${postId}/comments${getCommentSortParams(sortOption)}`);
+				setComments(nextComments);
+			} finally {
+				if (showLoading) setCommentsLoading(false);
+			}
+		},
+		[commentSortOption, getCommentSortParams, postId]
+	);
+
+	React.useEffect(() => {
+		didInitialLoadRef.current = false;
+		async function runInitialLoad() {
+			if (!postId) {
+				setError('帖子不存在');
+				setPost(null);
+				setComments([]);
+				setInitialLoading(false);
+				return;
+			}
+			setInitialLoading(true);
+			setError('');
+			try {
+				await Promise.all([refreshPost(), refreshComments(commentSortOption, false)]);
+				didInitialLoadRef.current = true;
+			} catch (e: any) {
+				setError(String(e?.message || e));
+				setPost(null);
+				setComments([]);
+			} finally {
+				setInitialLoading(false);
+				setCommentsLoading(false);
+			}
 		}
+		void runInitialLoad();
 	}, [postId, userId]);
 
 	React.useEffect(() => {
-		refresh();
-	}, [refresh]);
+		if (!didInitialLoadRef.current) return;
+		void refreshComments();
+	}, [refreshComments]);
 
 	React.useEffect(() => {
 		void apiFetch<Category[]>('/categories')
@@ -289,7 +334,7 @@ export function PostPage() {
 			setReplyTo(null);
 			setTurnstileToken('');
 			setTurnstileResetKey((v) => v + 1);
-			await refresh();
+			await refreshComments();
 		} catch (e: any) {
 			setCommentError(String(e?.message || e));
 			setTurnstileToken('');
@@ -306,7 +351,7 @@ export function PostPage() {
 				method: 'DELETE',
 				headers: getSecurityHeaders('DELETE')
 			});
-			await refresh();
+			await refreshComments();
 		} catch (e: any) {
 			alert(String(e?.message || e));
 		}
@@ -356,7 +401,7 @@ export function PostPage() {
 				body: JSON.stringify({ category_id: categoryId })
 			});
 			setAdminMenuOpen(false);
-			await refresh();
+			await refreshPost();
 		} catch {
 			return;
 		}
@@ -501,7 +546,7 @@ export function PostPage() {
 				body: JSON.stringify({ title: editTitle, content: editContent, category_id: post.category_id })
 			});
 			setIsEditing(false);
-			await refresh();
+			await refreshPost();
 		} catch (e: any) {
 			setEditError(String(e?.message || e));
 		} finally {
@@ -523,7 +568,7 @@ export function PostPage() {
 
 				{error ? <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">{error}</div> : null}
 
-				{loading ? (
+				{initialLoading ? (
 					<Card>
 						<CardContent className="py-6 text-sm text-muted-foreground">加载中...</CardContent>
 					</Card>
@@ -687,9 +732,28 @@ export function PostPage() {
 
 						<Card>
 							<CardHeader>
-								<CardTitle>评论</CardTitle>
+								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+									<CardTitle>评论</CardTitle>
+									<div className="flex items-center gap-2">
+										<label className="text-sm text-muted-foreground" htmlFor="comment-sort-filter">
+											排序
+										</label>
+										<select
+											id="comment-sort-filter"
+											className="h-9 max-w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+											value={commentSortOption}
+											onChange={(e) => setCommentSortOption(e.target.value)}
+											disabled={commentsLoading || commentLoading}
+										>
+											<option value="likes_desc">最多点赞</option>
+											<option value="time_desc">最新发布</option>
+											<option value="time_asc">最早发布</option>
+										</select>
+									</div>
+								</div>
 							</CardHeader>
 							<CardContent className="space-y-4">
+								{commentsLoading ? <div className="text-sm text-muted-foreground">评论加载中...</div> : null}
 								{replyTo ? (
 									<div className="flex items-center justify-between rounded-md border bg-muted/30 p-2 text-sm">
 										<span>
@@ -747,7 +811,7 @@ export function PostPage() {
 									</div>
 									<TurnstileWidget enabled={enabled} siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 									<div className="flex items-center gap-2">
-										<Button type="submit" disabled={commentLoading}>{commentLoading ? '发布中...' : '发布评论'}</Button>
+										<Button type="submit" disabled={commentLoading || commentsLoading}>{commentLoading ? '发布中...' : '发布评论'}</Button>
 										{!user ? (
 											<Button type="button" variant="outline" onClick={() => (window.location.href = '/login')}>
 												登录后评论

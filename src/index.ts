@@ -1640,6 +1640,17 @@ export default {
 					currentUserId = userPayload.id;
 				} catch {}
 
+				const sortByRaw = (url.searchParams.get('sort_by') || 'likes').trim().toLowerCase();
+				const sortDirRaw = (url.searchParams.get('sort_dir') || 'desc').trim().toLowerCase();
+				const sortBy = sortByRaw === 'time' ? 'time' : 'likes';
+				const sortDir = sortDirRaw === 'asc' ? 'ASC' : 'DESC';
+				const sortExpr =
+					sortBy === 'time'
+						? `comments.created_at ${sortDir}`
+						: sortDir === 'ASC'
+							? 'like_count ASC, comments.created_at ASC'
+							: 'like_count DESC, comments.created_at ASC';
+
 				const { results } = await env.forum_db.prepare(
 					`SELECT comments.*, users.username, users.avatar_url, users.role,
 						(SELECT COUNT(*) FROM comment_likes WHERE comment_likes.comment_id = comments.id) as like_count,
@@ -1650,7 +1661,7 @@ export default {
                      FROM comments
                      JOIN users ON comments.author_id = users.id
                      WHERE post_id = ?
-                     ORDER BY created_at ASC`
+                     ORDER BY ${sortExpr}`
 				).bind(currentUserId, postId).all();
 				return jsonResponse(results.map((comment: any) => ({
 					...comment,
