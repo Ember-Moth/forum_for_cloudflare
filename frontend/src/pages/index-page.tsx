@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useConfig } from '@/hooks/use-config';
-import { apiFetch, formatDate, getSecurityHeaders, type Category, type Post } from '@/lib/api';
+import { apiFetch, formatDate, getSecurityHeaders, insertTextAtSelection, type Category, type Post } from '@/lib/api';
 import { getToken, getUser, logout } from '@/lib/auth';
 import { attachFancybox, highlightCodeBlocks, renderMarkdownToHtml } from '@/lib/markdown';
 import { validateText } from '@/lib/validators';
@@ -42,6 +42,8 @@ export function IndexPage() {
 	const [turnstileResetKey, setTurnstileResetKey] = React.useState(0);
 	const [uploadingImage, setUploadingImage] = React.useState(false);
 	const previewRef = React.useRef<HTMLDivElement | null>(null);
+	const newContentSelectionRef = React.useRef<{ start: number; end: number } | null>(null);
+	const newContentTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
 	const [adminMenuPostId, setAdminMenuPostId] = React.useState<number | null>(null);
 	const [adminActionPostId, setAdminActionPostId] = React.useState<number | null>(null);
 	const [sortOption, setSortOption] = React.useState('time_desc');
@@ -206,7 +208,7 @@ export function IndexPage() {
 		}
 	}
 
-	async function uploadPostImage(file: File) {
+	async function uploadPostImage(file: File, selection = newContentSelectionRef.current) {
 		if (!user) {
 			window.location.href = '/login';
 			return;
@@ -246,7 +248,19 @@ export function IndexPage() {
 			}
 			const imageUrl = data.url;
 			const markdownImage = `![image](${imageUrl})`;
-			setNewContent((prev) => (prev ? `${prev}\n${markdownImage}` : markdownImage));
+			let nextSelectionStart = 0;
+			setNewContent((prev) => {
+				const insertion = insertTextAtSelection(prev, selection?.start ?? prev.length, selection?.end ?? prev.length, markdownImage);
+				nextSelectionStart = insertion.selectionStart;
+				newContentSelectionRef.current = { start: insertion.selectionStart, end: insertion.selectionEnd };
+				return insertion.value;
+			});
+			requestAnimationFrame(() => {
+				const textarea = newContentTextareaRef.current;
+				if (!textarea) return;
+				textarea.focus();
+				textarea.setSelectionRange(nextSelectionStart, nextSelectionStart);
+			});
 		} catch (e: any) {
 			setCreateError(String(e?.message || e));
 		} finally {
@@ -318,6 +332,14 @@ export function IndexPage() {
 		if (mdMatch?.[1]) return mdMatch[1];
 		const htmlMatch = markdown.match(/<img[^>]+src=["']([^"']+)["']/i);
 		return htmlMatch?.[1] || '';
+	}
+
+	function handleNewContentSelection(event: React.SyntheticEvent<HTMLTextAreaElement>) {
+		newContentSelectionRef.current = {
+			start: event.currentTarget.selectionStart ?? 0,
+			end: event.currentTarget.selectionEnd ?? 0
+		};
+		newContentTextareaRef.current = event.currentTarget;
 	}
 
 	return (
@@ -479,7 +501,7 @@ export function IndexPage() {
 													className="hidden"
 													onChange={(e) => {
 														const f = e.target.files?.[0];
-														if (f) uploadPostImage(f);
+														if (f) void uploadPostImage(f);
 														e.target.value = '';
 													}}
 												/>
@@ -493,13 +515,43 @@ export function IndexPage() {
 										</div>
 										<div className={`${previewOpen ? 'hidden lg:block' : ''}`}>
 											<div className="rounded-md border">
-												<Textarea id="new-content" value={newContent} onChange={(e) => setNewContent(e.target.value)} rows={18} required className="min-h-[24rem] resize-y border-0 shadow-none focus-visible:ring-0" />
+												<Textarea
+													id="new-content"
+													value={newContent}
+													onChange={(e) => setNewContent(e.target.value)}
+													onSelect={handleNewContentSelection}
+													onClick={handleNewContentSelection}
+													onKeyUp={handleNewContentSelection}
+													onImagePaste={({ file, selectionStart, selectionEnd, target }) => {
+														newContentSelectionRef.current = { start: selectionStart, end: selectionEnd };
+														newContentTextareaRef.current = target;
+														void uploadPostImage(file, { start: selectionStart, end: selectionEnd });
+													}}
+													rows={18}
+													required
+													className="min-h-[24rem] resize-y border-0 shadow-none focus-visible:ring-0"
+												/>
 											</div>
 										</div>
 										{!previewOpen ? (
 											<div className="lg:hidden">
 												<div className="rounded-md border">
-													<Textarea id="new-content-mobile" value={newContent} onChange={(e) => setNewContent(e.target.value)} rows={18} required className="min-h-[24rem] resize-y border-0 shadow-none focus-visible:ring-0" />
+													<Textarea
+															id="new-content-mobile"
+															value={newContent}
+															onChange={(e) => setNewContent(e.target.value)}
+															onSelect={handleNewContentSelection}
+															onClick={handleNewContentSelection}
+															onKeyUp={handleNewContentSelection}
+															onImagePaste={({ file, selectionStart, selectionEnd, target }) => {
+																newContentSelectionRef.current = { start: selectionStart, end: selectionEnd };
+																newContentTextareaRef.current = target;
+																void uploadPostImage(file, { start: selectionStart, end: selectionEnd });
+															}}
+															rows={18}
+															required
+															className="min-h-[24rem] resize-y border-0 shadow-none focus-visible:ring-0"
+														/>
 												</div>
 											</div>
 										) : null}

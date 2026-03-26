@@ -85,6 +85,36 @@ export async function checkSession(): Promise<SessionInfo> {
 	});
 }
 
+export type TextInsertResult = {
+	value: string;
+	selectionStart: number;
+	selectionEnd: number;
+};
+
+export function insertTextAtSelection(value: string, selectionStart: number, selectionEnd: number, insertedText: string): TextInsertResult {
+	const safeStart = Math.max(0, Math.min(selectionStart, value.length));
+	const safeEnd = Math.max(safeStart, Math.min(selectionEnd, value.length));
+	const selectedText = value.slice(safeStart, safeEnd);
+	const before = value.slice(0, safeStart);
+	const after = value.slice(safeEnd);
+
+	let textToInsert = insertedText;
+	if (!selectedText) {
+		const needsLeadingBreak = safeStart > 0 && !before.endsWith('\n');
+		const needsTrailingBreak = safeEnd < value.length && !after.startsWith('\n');
+		if (needsLeadingBreak) textToInsert = `\n${textToInsert}`;
+		if (needsTrailingBreak) textToInsert = `${textToInsert}\n`;
+	}
+
+	const nextValue = `${before}${textToInsert}${after}`;
+	const nextSelection = before.length + textToInsert.length;
+	return {
+		value: nextValue,
+		selectionStart: nextSelection,
+		selectionEnd: nextSelection
+	};
+}
+
 export function formatDate(dateString: string | null | undefined) {
 	if (!dateString) return '';
 	const date = new Date(dateString.endsWith('Z') ? dateString : `${dateString}Z`);

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useConfig } from '@/hooks/use-config';
-import { apiFetch, formatDate, getSecurityHeaders, type Category, type Comment, type Post } from '@/lib/api';
+import { apiFetch, formatDate, getSecurityHeaders, insertTextAtSelection, type Category, type Comment, type Post } from '@/lib/api';
 import { getToken, getUser, logout } from '@/lib/auth';
 import { attachFancybox, highlightCodeBlocks, renderMarkdownToHtml } from '@/lib/markdown';
 import { validateText } from '@/lib/validators';
@@ -31,16 +31,21 @@ export function PostPage() {
 	const [commentError, setCommentError] = React.useState('');
 	const [turnstileToken, setTurnstileToken] = React.useState('');
 	const [turnstileResetKey, setTurnstileResetKey] = React.useState(0);
-	const [uploadingImage, setUploadingImage] = React.useState(false);
+	const [uploadingCommentImage, setUploadingCommentImage] = React.useState(false);
 
 	const [isEditing, setIsEditing] = React.useState(false);
 	const [editTitle, setEditTitle] = React.useState('');
 	const [editContent, setEditContent] = React.useState('');
 	const [editLoading, setEditLoading] = React.useState(false);
+	const [editUploadingImage, setEditUploadingImage] = React.useState(false);
 	const [editError, setEditError] = React.useState('');
 	const contentRef = React.useRef<HTMLDivElement | null>(null);
 	const [editPreviewOpen, setEditPreviewOpen] = React.useState(true);
 	const editPreviewRef = React.useRef<HTMLDivElement | null>(null);
+	const commentSelectionRef = React.useRef<{ start: number; end: number } | null>(null);
+	const commentTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+	const editSelectionRef = React.useRef<{ start: number; end: number } | null>(null);
+	const editTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
 	const [adminMenuOpen, setAdminMenuOpen] = React.useState(false);
 	const adminMenuRef = React.useRef<HTMLDivElement | null>(null);
 	const [allCategories, setAllCategories] = React.useState<Category[]>([]);
@@ -160,7 +165,7 @@ export function PostPage() {
 		}
 	}
 
-	async function uploadCommentImage(file: File) {
+	async function uploadCommentImage(file: File, selection = commentSelectionRef.current) {
 		if (!user) {
 			window.location.href = '/login';
 			return;
@@ -180,7 +185,7 @@ export function PostPage() {
 		formData.append('type', 'comment');
 		formData.append('post_id', postId || 'general');
 
-		setUploadingImage(true);
+		setUploadingCommentImage(true);
 		setCommentError('');
 		try {
 			const headers = getSecurityHeaders('POST', null);
@@ -200,11 +205,23 @@ export function PostPage() {
 			}
 			const imageUrl = data.url;
 			const markdownImage = `![image](${imageUrl})`;
-			setNewComment((prev) => (prev ? `${prev}\n${markdownImage}` : markdownImage));
+			let nextSelectionStart = 0;
+			setNewComment((prev) => {
+				const insertion = insertTextAtSelection(prev, selection?.start ?? prev.length, selection?.end ?? prev.length, markdownImage);
+				nextSelectionStart = insertion.selectionStart;
+				commentSelectionRef.current = { start: insertion.selectionStart, end: insertion.selectionEnd };
+				return insertion.value;
+			});
+			requestAnimationFrame(() => {
+				const textarea = commentTextareaRef.current;
+				if (!textarea) return;
+				textarea.focus();
+				textarea.setSelectionRange(nextSelectionStart, nextSelectionStart);
+			});
 		} catch (e: any) {
 			setCommentError(String(e?.message || e));
 		} finally {
-			setUploadingImage(false);
+			setUploadingCommentImage(false);
 		}
 	}
 
@@ -307,6 +324,86 @@ export function PostPage() {
 		} catch {
 			return;
 		}
+	}
+
+	async function uploadEditImage(file: File, selection = editSelectionRef.current) {
+		if (!user) {
+			window.location.href = '/login';
+			return;
+		}
+		const token = getToken();
+		if (!token) {
+			setEditError('登录已过期，请重新登录');
+			return;
+		}
+		if (!post) {
+			setEditError('帖子不存在');
+			return;
+		}
+		if (file.size > 500 * 1024) {
+			setEditError('文件过大 (最大 500KB)');
+			return;
+		}
+
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('type', 'post');
+		formData.append('post_id', String(post.id));
+
+		setEditUploadingImage(true);
+		setEditError('');
+		try {
+			const headers = getSecurityHeaders('POST', null);
+			const res = await fetch('/api/upload', {
+				method: 'POST',
+				headers,
+				body: formData
+			});
+			if (res.status === 401) {
+				logout();
+				window.location.href = '/login';
+				return;
+			}
+			const data = (await res.json()) as any;
+			if (!res.ok) {
+				throw new Error(data?.error || '上传失败');
+			}
+			const imageUrl = data.url;
+			const markdownImage = `![image](${imageUrl})`;
+			let nextSelectionStart = 0;
+			setEditContent((prev) => {
+				const insertion = insertTextAtSelection(prev, selection?.start ?? prev.length, selection?.end ?? prev.length, markdownImage);
+				nextSelectionStart = insertion.selectionStart;
+				editSelectionRef.current = { start: insertion.selectionStart, end: insertion.selectionEnd };
+				return insertion.value;
+			});
+			requestAnimationFrame(() => {
+				const textarea = editTextareaRef.current;
+				if (!textarea) return;
+				textarea.focus();
+				textarea.setSelectionRange(nextSelectionStart, nextSelectionStart);
+			});
+		} catch (e: any) {
+			setEditError(String(e?.message || e));
+		} finally {
+			setEditUploadingImage(false);
+		}
+	}
+
+	function handleCommentSelection(event: React.SyntheticEvent<HTMLTextAreaElement>) {
+		commentSelectionRef.current = {
+			start: event.currentTarget.selectionStart ?? 0,
+			end: event.currentTarget.selectionEnd ?? 0
+		};
+		commentTextareaRef.current = event.currentTarget;
+	}
+
+	function handleEditSelection(event: React.SyntheticEvent<HTMLTextAreaElement>) {
+		editSelectionRef.current = {
+			start: event.currentTarget.selectionStart ?? 0,
+			end: event.currentTarget.selectionEnd ?? 0
+		};
+		editTextareaRef.current = event.currentTarget;
 	}
 
 	async function saveEdit() {
@@ -491,6 +588,24 @@ export function PostPage() {
 													{editPreviewOpen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
 													<span>{editPreviewOpen ? '关闭预览' : '打开预览'}</span>
 												</Button>
+												<label className="cursor-pointer">
+													<input
+														type="file"
+														accept="image/*"
+														className="hidden"
+														onChange={(e) => {
+															const f = e.target.files?.[0];
+															if (f) void uploadEditImage(f);
+															e.target.value = '';
+														}}
+													/>
+													<Button type="button" variant="outline" size="sm" disabled={editUploadingImage} asChild>
+														<span>
+															<Image className="h-4 w-4" />
+															<span className="sr-only">{editUploadingImage ? '上传中...' : '上传图片'}</span>
+														</span>
+													</Button>
+												</label>
 												<Button onClick={saveEdit} disabled={editLoading} size="sm" className="ml-auto">
 													{editLoading ? '保存中...' : '保存'}
 												</Button>
@@ -501,13 +616,39 @@ export function PostPage() {
 												<Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} maxLength={30} />
 												<div className={`${editPreviewOpen ? 'hidden lg:block' : ''}`}>
 													<div className="rounded-md border">
-														<Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={18} className="min-h-[24rem] resize-y border-0 shadow-none focus-visible:ring-0" />
+														<Textarea
+															value={editContent}
+															onChange={(e) => setEditContent(e.target.value)}
+															onSelect={handleEditSelection}
+															onClick={handleEditSelection}
+															onKeyUp={handleEditSelection}
+															onImagePaste={({ file, selectionStart, selectionEnd, target }) => {
+																editSelectionRef.current = { start: selectionStart, end: selectionEnd };
+																editTextareaRef.current = target;
+																void uploadEditImage(file, { start: selectionStart, end: selectionEnd });
+															}}
+															rows={18}
+															className="min-h-[24rem] resize-y border-0 shadow-none focus-visible:ring-0"
+														/>
 													</div>
 												</div>
 												{!editPreviewOpen ? (
 													<div className="lg:hidden">
 														<div className="rounded-md border">
-															<Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={18} className="min-h-[24rem] resize-y border-0 shadow-none focus-visible:ring-0" />
+															<Textarea
+																value={editContent}
+																onChange={(e) => setEditContent(e.target.value)}
+																onSelect={handleEditSelection}
+																onClick={handleEditSelection}
+																onKeyUp={handleEditSelection}
+																onImagePaste={({ file, selectionStart, selectionEnd, target }) => {
+																	editSelectionRef.current = { start: selectionStart, end: selectionEnd };
+																	editTextareaRef.current = target;
+																	void uploadEditImage(file, { start: selectionStart, end: selectionEnd });
+																}}
+																rows={18}
+																className="min-h-[24rem] resize-y border-0 shadow-none focus-visible:ring-0"
+															/>
 														</div>
 													</div>
 												) : null}
@@ -561,19 +702,32 @@ export function PostPage() {
 													className="hidden"
 													onChange={(e) => {
 														const f = e.target.files?.[0];
-														if (f) uploadCommentImage(f);
+														if (f) void uploadCommentImage(f);
 														e.target.value = '';
 													}}
 												/>
-												<Button type="button" variant="outline" size="sm" disabled={uploadingImage} asChild>
+												<Button type="button" variant="outline" size="sm" disabled={uploadingCommentImage} asChild>
 													<span>
 														<Image className="h-4 w-4" />
-														<span className="sr-only">{uploadingImage ? '上传中...' : '上传图片'}</span>
+														<span className="sr-only">{uploadingCommentImage ? '上传中...' : '上传图片'}</span>
 													</span>
 												</Button>
 											</label>
 										</div>
-										<Textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} rows={4} placeholder="写下你的评论..." />
+										<Textarea
+											value={newComment}
+											onChange={(e) => setNewComment(e.target.value)}
+											onSelect={handleCommentSelection}
+											onClick={handleCommentSelection}
+											onKeyUp={handleCommentSelection}
+											onImagePaste={({ file, selectionStart, selectionEnd, target }) => {
+												commentSelectionRef.current = { start: selectionStart, end: selectionEnd };
+												commentTextareaRef.current = target;
+												void uploadCommentImage(file, { start: selectionStart, end: selectionEnd });
+											}}
+											rows={4}
+											placeholder="写下你的评论..."
+										/>
 									</div>
 									<TurnstileWidget enabled={enabled} siteKey={siteKey} onToken={setTurnstileToken} resetKey={turnstileResetKey} />
 									<div className="flex items-center gap-2">
