@@ -7,32 +7,30 @@
 	"name": "forum",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-09-27",
-	"compatibility_flags": [
-		"global_fetch_strictly_public"
-	],
+	"compatibility_flags": ["global_fetch_strictly_public"],
 	"assets": {
 		// The path to the directory containing the `index.html` file to be served at `/`
-		"directory": "./public"
+		"directory": "./public",
 	},
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
 	"rules": [
 		{
 			"type": "Text",
 			"globs": ["**/*.html"],
-			"fallthrough": true
-		}
+			"fallthrough": true,
+		},
 	],
 	"d1_databases": [
 		{
 			"binding": "forum_db",
 			"database_name": "forum-db",
-			"database_id": "e789efde-b66b-401b-8ad9-a13099357cb6",
+			"database_id": "cc342f99-feba-4fd1-8bd4-ea8ee86683a9",
 			"remote": true,
-			"migrations_dir": "migrations"
-		}
-	]
+			"migrations_dir": "migrations",
+		},
+	],
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
