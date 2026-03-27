@@ -12,6 +12,7 @@ import { useConfig } from '@/hooks/use-config';
 import { apiFetch, createImageUploadPlaceholder, formatDate, getSecurityHeaders, insertImageUploadPlaceholder, removeImageUploadPlaceholder, replaceImageUploadPlaceholder, type Category, type Post } from '@/lib/api';
 import { getToken, getUser, logout } from '@/lib/auth';
 import { renderMarkdownToHtml } from '@/lib/markdown';
+import { SITE_NAME } from '@/lib/site';
 import { validateText } from '@/lib/validators';
 
 export function IndexPage() {
@@ -375,7 +376,7 @@ export function IndexPage() {
 				{banner ? <div className="rounded-md border bg-muted/40 p-3 text-sm">{banner}</div> : null}
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
 					<div className="min-w-0">
-						<h1 className="text-2xl font-semibold tracking-tight">{config?.site_name || 'D1 Forum'}</h1>
+						<h1 className="text-2xl font-semibold tracking-tight">{SITE_NAME}</h1>
 						<div
 							className="prose prose-sm mt-2 max-w-none break-words text-muted-foreground [&_a]:break-all [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
 							dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(config?.home_intro_markdown || '') }}

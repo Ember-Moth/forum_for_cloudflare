@@ -4,6 +4,7 @@ import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { useConfig } from '@/hooks/use-config';
 import { getUser, type User } from '@/lib/auth';
+import { SITE_ICON_URL, SITE_NAME } from '@/lib/site';
 
 export function PageShell({
 	children
@@ -17,8 +18,8 @@ export function PageShell({
 		<div className="min-h-dvh bg-background">
 			<SiteHeader
 				currentUser={user}
-				siteName={config?.site_name || 'D1 Forum'}
-				siteAvatarUrl={config?.site_avatar_url || ''}
+				siteName={SITE_NAME}
+				siteAvatarUrl={SITE_ICON_URL}
 				onLogout={() => setUser(null)}
 			/>
 			<div className="flex min-h-[calc(100dvh-4rem)] flex-col">

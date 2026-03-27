@@ -8,11 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useConfig } from '@/hooks/use-config';
 import { getSecurityHeaders } from '@/lib/api';
+import { SITE_ICON_URL, SITE_NAME } from '@/lib/site';
 
 export function RegisterPage() {
 	const { config } = useConfig();
-	const siteName = config?.site_name || 'D1 Forum';
-	const siteAvatarUrl = config?.site_avatar_url || '';
 	const [email, setEmail] = React.useState('');
 	const [username, setUsername] = React.useState('');
 	const [password, setPassword] = React.useState('');
@@ -69,13 +68,13 @@ export function RegisterPage() {
 		<div className="flex min-h-dvh flex-col bg-muted/20">
 			<main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-6 px-4 py-10">
 				<a href="/" className="inline-flex items-center gap-3 text-foreground">
-					{siteAvatarUrl ? (
-						<img src={siteAvatarUrl} alt="" className="h-12 w-12 rounded-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+					{SITE_ICON_URL ? (
+						<img src={SITE_ICON_URL} alt="" className="h-12 w-12 rounded-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
 					) : (
 						<div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted text-lg font-semibold">站</div>
 					)}
 					<div className="text-left">
-						<div className="text-lg font-semibold">{siteName}</div>
+						<div className="text-lg font-semibold">{SITE_NAME}</div>
 						<div className="text-sm text-muted-foreground">创建你的账号</div>
 					</div>
 				</a>

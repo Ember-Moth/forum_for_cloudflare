@@ -357,17 +357,13 @@ export default {
 		};
 
 		const DEFAULT_SESSION_TTL_DAYS = 7;
-		const DEFAULT_SITE_NAME = 'D1 Forum';
 		const DEFAULT_HOME_INTRO_MARKDOWN =
 			'开源：[https://github.com/afoim/forum_for_cloudflare](https://github.com/afoim/forum_for_cloudflare) 基于 shadcn/ui + Tailwind 的多页应用（非 SPA），由 Cloudflare Workers 在边缘统一提供静态页面与 API。感谢 [https://www.cloudflare.com](https://www.cloudflare.com) 提供的 CDN 与 DDoS 防护服务';
 		const DEFAULT_SITE_FOOTER_MARKDOWN = '';
 		const SESSION_TTL_SETTING_KEY = 'session_ttl_days';
-		const SITE_NAME_SETTING_KEY = 'site_name';
-		const SITE_AVATAR_URL_SETTING_KEY = 'site_avatar_url';
 		const HOME_INTRO_MARKDOWN_SETTING_KEY = 'home_intro_markdown';
 		const SITE_FOOTER_MARKDOWN_SETTING_KEY = 'site_footer_markdown';
 		const MAX_SESSION_TTL_DAYS = 365;
-		const MAX_SITE_NAME_LENGTH = 60;
 		const MAX_MARKDOWN_SETTING_LENGTH = 5000;
 		const BOOLEAN_SETTING_KEYS = new Set([
 			'turnstile_enabled',
@@ -385,48 +381,26 @@ export default {
 			const setting = await env.forum_db.prepare('SELECT value FROM settings WHERE key = ?').bind(SESSION_TTL_SETTING_KEY).first();
 			return normalizeSessionTtlDays(setting?.value);
 		};
-		const normalizeSiteName = (value: unknown): string => {
-			const next = String(value ?? '').trim();
-			if (!next) return DEFAULT_SITE_NAME;
-			return next.slice(0, MAX_SITE_NAME_LENGTH);
-		};
 		const normalizeMarkdownSetting = (value: unknown, fallback = ''): string => {
 			const next = typeof value === 'string' ? value : String(value ?? '');
 			if (!next) return fallback;
 			return next.slice(0, MAX_MARKDOWN_SETTING_LENGTH);
 		};
-		const normalizeSiteAvatarUrl = (value: unknown): string => String(value ?? '').trim();
-		const isValidSiteAvatarUrl = (value: string): boolean => {
-			if (!value) return true;
-			if (value.startsWith('/')) return true;
-			try {
-				const parsed = new URL(value);
-				return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-			} catch {
-				return false;
-			}
-		};
 		const getSiteConfig = async (): Promise<{
-			siteName: string;
-			siteAvatarUrl: string;
 			homeIntroMarkdown: string;
 			siteFooterMarkdown: string;
 		}> => {
 			const settings = await env.forum_db
-				.prepare(`SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?)`)
-				.bind(SITE_NAME_SETTING_KEY, SITE_AVATAR_URL_SETTING_KEY, HOME_INTRO_MARKDOWN_SETTING_KEY, SITE_FOOTER_MARKDOWN_SETTING_KEY)
+				.prepare(`SELECT key, value FROM settings WHERE key IN (?, ?)`)
+				.bind(HOME_INTRO_MARKDOWN_SETTING_KEY, SITE_FOOTER_MARKDOWN_SETTING_KEY)
 				.all<{ key: string; value: string | null }>();
-			let siteName = DEFAULT_SITE_NAME;
-			let siteAvatarUrl = '';
 			let homeIntroMarkdown = DEFAULT_HOME_INTRO_MARKDOWN;
 			let siteFooterMarkdown = DEFAULT_SITE_FOOTER_MARKDOWN;
 			for (const row of settings.results ?? []) {
-				if (row.key === SITE_NAME_SETTING_KEY) siteName = normalizeSiteName(row.value);
-				if (row.key === SITE_AVATAR_URL_SETTING_KEY) siteAvatarUrl = normalizeSiteAvatarUrl(row.value);
 				if (row.key === HOME_INTRO_MARKDOWN_SETTING_KEY) homeIntroMarkdown = normalizeMarkdownSetting(row.value, DEFAULT_HOME_INTRO_MARKDOWN);
 				if (row.key === SITE_FOOTER_MARKDOWN_SETTING_KEY) siteFooterMarkdown = normalizeMarkdownSetting(row.value, DEFAULT_SITE_FOOTER_MARKDOWN);
 			}
-			return { siteName, siteAvatarUrl, homeIntroMarkdown, siteFooterMarkdown };
+			return { homeIntroMarkdown, siteFooterMarkdown };
 		};
 		const getPageTitle = (pathname: string, siteName: string): string => {
 			const pageTitle =
@@ -505,8 +479,6 @@ export default {
 				return jsonResponse({
 					turnstile_enabled: setting ? setting.value === '1' : false,
 					turnstile_site_key: env.TURNSTILE_SITE_KEY || '',
-					site_name: siteConfig.siteName,
-					site_avatar_url: siteConfig.siteAvatarUrl,
 					home_intro_markdown: siteConfig.homeIntroMarkdown,
 					site_footer_markdown: siteConfig.siteFooterMarkdown,
 					user_count: userCount || 0
@@ -533,8 +505,6 @@ export default {
 					notify_on_avatar_change: false,
 					notify_on_manual_verify: false,
 					session_ttl_days: sessionTtlDays,
-					site_name: DEFAULT_SITE_NAME,
-					site_avatar_url: '',
 					home_intro_markdown: DEFAULT_HOME_INTRO_MARKDOWN,
 					site_footer_markdown: DEFAULT_SITE_FOOTER_MARKDOWN
 				};
@@ -542,14 +512,6 @@ export default {
 				if (settings.results) {
 					for (const row of settings.results) {
 						if (row.key === SESSION_TTL_SETTING_KEY) continue;
-						if (row.key === SITE_NAME_SETTING_KEY) {
-							config.site_name = normalizeSiteName(row.value);
-							continue;
-						}
-						if (row.key === SITE_AVATAR_URL_SETTING_KEY) {
-							config.site_avatar_url = normalizeSiteAvatarUrl(row.value);
-							continue;
-						}
 						if (row.key === HOME_INTRO_MARKDOWN_SETTING_KEY) {
 							config.home_intro_markdown = normalizeMarkdownSetting(row.value, DEFAULT_HOME_INTRO_MARKDOWN);
 							continue;
@@ -584,8 +546,6 @@ export default {
 					notify_on_avatar_change,
 					notify_on_manual_verify,
 					session_ttl_days,
-					site_name,
-					site_avatar_url,
 					home_intro_markdown,
 					site_footer_markdown
 				} = body;
@@ -604,23 +564,6 @@ export default {
 						return jsonResponse({ error: `登录态有效天数必须是 1 到 ${MAX_SESSION_TTL_DAYS} 的整数` }, 400);
 					}
 					batch.push(stmt.bind(SESSION_TTL_SETTING_KEY, String(parsedSessionTtlDays)));
-				}
-				if (site_name !== undefined) {
-					const normalizedSiteName = String(site_name ?? '').trim();
-					if (!normalizedSiteName) {
-						return jsonResponse({ error: '站点名称不能为空' }, 400);
-					}
-					if (normalizedSiteName.length > MAX_SITE_NAME_LENGTH) {
-						return jsonResponse({ error: `站点名称不能超过 ${MAX_SITE_NAME_LENGTH} 个字符` }, 400);
-					}
-					batch.push(stmt.bind(SITE_NAME_SETTING_KEY, normalizedSiteName));
-				}
-				if (site_avatar_url !== undefined) {
-					const normalizedSiteAvatarUrl = normalizeSiteAvatarUrl(site_avatar_url);
-					if (!isValidSiteAvatarUrl(normalizedSiteAvatarUrl)) {
-						return jsonResponse({ error: '站点头像 URL 必须是 http(s) 地址或以 / 开头的站内路径' }, 400);
-					}
-					batch.push(stmt.bind(SITE_AVATAR_URL_SETTING_KEY, normalizedSiteAvatarUrl));
 				}
 				if (home_intro_markdown !== undefined) {
 					const normalizedHomeIntroMarkdown = typeof home_intro_markdown === 'string' ? home_intro_markdown : String(home_intro_markdown ?? '');

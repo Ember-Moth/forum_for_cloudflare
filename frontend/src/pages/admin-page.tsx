@@ -106,8 +106,6 @@ export function AdminPage() {
 		notify_on_avatar_change: false,
 		notify_on_manual_verify: false,
 		session_ttl_days: '7',
-		site_name: 'D1 Forum',
-		site_avatar_url: '',
 		home_intro_markdown: '',
 		site_footer_markdown: ''
 	});
@@ -161,8 +159,6 @@ export function AdminPage() {
 				notify_on_avatar_change: !!settings.notify_on_avatar_change,
 				notify_on_manual_verify: !!settings.notify_on_manual_verify,
 				session_ttl_days: String(settings.session_ttl_days ?? 7),
-				site_name: settings.site_name || 'D1 Forum',
-				site_avatar_url: settings.site_avatar_url || '',
 				home_intro_markdown: settings.home_intro_markdown || '',
 				site_footer_markdown: settings.site_footer_markdown || ''
 			});
@@ -194,9 +190,7 @@ export function AdminPage() {
 				headers: getSecurityHeaders('POST'),
 				body: JSON.stringify({
 					...systemSettings,
-					session_ttl_days: sessionTtlDays,
-					site_name: systemSettings.site_name.trim(),
-					site_avatar_url: systemSettings.site_avatar_url.trim()
+					session_ttl_days: sessionTtlDays
 				})
 			});
 			alert('设置已保存');
@@ -426,24 +420,6 @@ export function AdminPage() {
 									启用 Cloudflare Turnstile
 								</label>
 								<div className="grid gap-2">
-									<Label htmlFor="site-name">站点名称</Label>
-									<Input
-										id="site-name"
-										value={systemSettings.site_name}
-										onChange={(e) => setSystemSettings((s) => ({ ...s, site_name: e.target.value }))}
-										maxLength={60}
-									/>
-								</div>
-								<div className="grid gap-2">
-									<Label htmlFor="site-avatar-url">站点头像 URL</Label>
-									<Input
-										id="site-avatar-url"
-										value={systemSettings.site_avatar_url}
-										onChange={(e) => setSystemSettings((s) => ({ ...s, site_avatar_url: e.target.value }))}
-										placeholder="https://example.com/avatar.png 或 /images/avatar.png"
-									/>
-								</div>
-								<div className="grid gap-2">
 									<Label htmlFor="session-ttl-days">登录态有效天数</Label>
 									<Input
 										id="session-ttl-days"
@@ -480,27 +456,6 @@ export function AdminPage() {
 									/>
 									<p className="text-xs text-muted-foreground">用于首页、帖子页、设置页、管理页以及登录/注册/找回/重置密码页的统一页脚。</p>
 								</div>
-								{systemSettings.site_name || systemSettings.site_avatar_url ? (
-									<div className="rounded-md border bg-muted/20 p-3">
-										<div className="mb-2 text-xs text-muted-foreground">品牌预览</div>
-										<div className="flex items-center gap-3">
-											{systemSettings.site_avatar_url ? (
-												<img
-													src={systemSettings.site_avatar_url}
-													alt=""
-													className="h-10 w-10 rounded-full object-cover"
-													referrerPolicy="no-referrer"
-												/>
-											) : (
-												<div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-background text-sm font-semibold">站</div>
-											)}
-											<div className="min-w-0">
-												<div className="truncate font-medium">{systemSettings.site_name || 'D1 Forum'}</div>
-												<div className="text-xs text-muted-foreground">用于站点头部、页面标题与 favicon</div>
-											</div>
-										</div>
-									</div>
-								) : null}
 								{systemSettings.home_intro_markdown ? (
 									<div className="rounded-md border bg-muted/20 p-3">
 										<div className="mb-2 text-xs text-muted-foreground">首页说明预览</div>
