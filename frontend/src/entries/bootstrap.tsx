@@ -5,7 +5,7 @@ import '@uiw/react-markdown-preview/markdown.css';
 import { createRoot } from 'react-dom/client';
 import * as React from 'react';
 import { checkSession } from '@/lib/api';
-import { getToken, logout } from '@/lib/auth';
+import { getToken, logout, setCsrfToken } from '@/lib/auth';
 import { initTheme } from '@/lib/theme';
 
 const REQUIRED_AUTH_PATHS = new Set(['/settings', '/admin']);
@@ -28,7 +28,10 @@ async function prepareSessionForCurrentPage() {
 	}
 
 	try {
-		await checkSession();
+		const session = await checkSession();
+		if (session.valid && session.csrfToken) {
+			setCsrfToken(session.csrfToken);
+		}
 		return true;
 	} catch {
 		logout();

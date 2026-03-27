@@ -10,6 +10,7 @@ export type User = {
 
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
+const CSRF_TOKEN_KEY = 'csrf_token';
 
 export function getToken(): string {
 	return localStorage.getItem(TOKEN_KEY) || '';
@@ -21,6 +22,18 @@ export function setToken(token: string) {
 
 export function clearToken() {
 	localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getCsrfToken(): string {
+	return localStorage.getItem(CSRF_TOKEN_KEY) || '';
+}
+
+export function setCsrfToken(csrfToken: string) {
+	localStorage.setItem(CSRF_TOKEN_KEY, csrfToken);
+}
+
+export function clearCsrfToken() {
+	localStorage.removeItem(CSRF_TOKEN_KEY);
 }
 
 export function getUser(): User | null {
@@ -43,5 +56,6 @@ export function clearUser() {
 export function logout() {
 	clearToken();
 	clearUser();
+	clearCsrfToken();
 }
 

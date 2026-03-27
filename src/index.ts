@@ -3,6 +3,7 @@ import { sendEmail } from './smtp';
 import { generateIdenticon } from './identicon';
 import { uploadImage, deleteImage, listAllKeys, getPublicUrl, S3Env } from './s3';
 import * as OTPAuth from 'otpauth';
+import { jwtVerify } from 'jose';
 import { Security, UserPayload } from './security';
 
 // Utility to extract image URLs from Markdown content
@@ -17,20 +18,110 @@ function extractImageUrls(content: string): string[] {
 	return urls;
 }
 
-// Utility to hash password
+// PBKDF2 Configuration
+const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_DIGEST = 'SHA-256';
+const SALT_LENGTH = 16; // bytes
+
+// Utility to hash password using PBKDF2 (Web Crypto API native for Cloudflare Workers)
+// Format: pbkdf2:iterations:digest:salt_base64:hash_base64
 async function hashPassword(password: string): Promise<string> {
-	const myText = new TextEncoder().encode(password);
-	const myDigest = await crypto.subtle.digest(
-		{
-			name: 'SHA-256',
-		},
-		myText
+	const encoder = new TextEncoder();
+	const passwordBytes = encoder.encode(password);
+
+	// Generate random salt
+	const salt = new Uint8Array(SALT_LENGTH);
+	crypto.getRandomValues(salt);
+
+	// Import password as key
+	const key = await crypto.subtle.importKey(
+		'raw',
+		passwordBytes,
+		{ name: 'PBKDF2' },
+		false,
+		['deriveKey']
 	);
-	const hashArray = Array.from(new Uint8Array(myDigest));
-	const hashHex = hashArray
-		.map((b) => b.toString(16).padStart(2, '0'))
-		.join('');
-	return hashHex;
+
+	// Derive key using PBKDF2
+	const derivedKey = await crypto.subtle.deriveKey(
+		{
+			name: 'PBKDF2',
+			salt: salt,
+			iterations: PBKDF2_ITERATIONS,
+			hash: PBKDF2_DIGEST,
+		},
+		key,
+		{ name: 'HMAC', hash: PBKDF2_DIGEST, length: 256 },
+		true,
+		['sign']
+	);
+
+	// Export the hash
+	const hash = await crypto.subtle.exportKey('raw', derivedKey);
+
+	// Encode to base64
+	const saltBase64 = btoa(String.fromCharCode(...salt));
+	const hashBase64 = btoa(String.fromCharCode(...new Uint8Array(hash)));
+
+	return `pbkdf2:${PBKDF2_ITERATIONS}:${PBKDF2_DIGEST.toLowerCase()}:${saltBase64}:${hashBase64}`;
+}
+
+// Verify password against stored hash
+// Supports both new PBKDF2 format and old SHA-256 plain format (for migration)
+async function verifyPassword(password: string, storedHash: string): Promise<{ valid: boolean; needsUpgrade: boolean }> {
+	// Old format: 64 hex characters = SHA-256 without salt
+	if (storedHash.length === 64 && /^[0-9a-fA-F]{64}$/.test(storedHash)) {
+		// Verify using old method
+		const encoder = new TextEncoder();
+		const passwordBytes = encoder.encode(password);
+		const digest = await crypto.subtle.digest({ name: 'SHA-256' }, passwordBytes);
+		const hashArray = Array.from(new Uint8Array(digest));
+		const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+		return { valid: hashHex === storedHash, needsUpgrade: true };
+	}
+
+	// New PBKDF2 format
+	const parts = storedHash.split(':');
+	if (parts.length !== 5 || parts[0] !== 'pbkdf2') {
+		return { valid: false, needsUpgrade: false };
+	}
+
+	const iterations = parseInt(parts[1], 10);
+	const digest = parts[2];
+	const saltBase64 = parts[3];
+	const expectedHashBase64 = parts[4];
+
+	// Decode salt
+	const saltBytes = new Uint8Array(atob(saltBase64).split('').map(c => c.charCodeAt(0)));
+
+	const encoder = new TextEncoder();
+	const passwordBytes = encoder.encode(password);
+
+	const key = await crypto.subtle.importKey(
+		'raw',
+		passwordBytes,
+		{ name: 'PBKDF2' },
+		false,
+		['deriveKey']
+	);
+
+	const derivedKey = await crypto.subtle.deriveKey(
+		{
+			name: 'PBKDF2',
+			salt: saltBytes,
+			iterations: iterations,
+			hash: digest,
+		},
+		key,
+		{ name: 'HMAC', hash: digest, length: 256 },
+		true,
+		['sign']
+	);
+
+	const hash = await crypto.subtle.exportKey('raw', derivedKey);
+	const hashBase64 = btoa(String.fromCharCode(...new Uint8Array(hash)));
+
+	return { valid: hashBase64 === expectedHashBase64, needsUpgrade: false };
 }
 
 // Utility to generate a random token (simple UUID for now) - DEPRECATED for AUTH, used for verification/reset
@@ -445,10 +536,10 @@ export default {
         // --- SECURITY CHECK (Replay + Headers) ---
         // Skip for public GET, Login, Register, Verify, Forgot/Reset Password, Config
         const publicPaths = [
-            '/api/config', '/api/login', '/api/register', '/api/verify', 
+            '/api/config', '/api/login', '/api/register', '/api/verify',
             '/api/auth/forgot-password', '/api/auth/reset-password', '/api/verify-email-change',
              // Static/Public GETs
-            '/api/posts', '/api/categories', '/api/users' 
+            '/api/posts', '/api/categories'
         ];
         
         // Relax check for public GETs that don't need nonce
@@ -464,6 +555,23 @@ export default {
              const validation = await security.validateRequest(request);
              if (!validation.valid) {
                  return jsonResponse({ error: validation.error || 'Security check failed' }, 400);
+             }
+
+             // CSRF Protection: validate token for authenticated requests
+             const authHeader = request.headers.get('Authorization');
+             if (authHeader && authHeader.startsWith('Bearer ')) {
+                 const token = authHeader.split(' ')[1];
+                 try {
+                     const { payload: jwtPayload } = await jwtVerify(token, security.getJwtSecret());
+                     const jti = jwtPayload.jti as string;
+                     const csrfToken = request.headers.get('X-CSRF-Token');
+
+                     if (!await security.validateCsrfToken(jti, csrfToken)) {
+                         return jsonResponse({ error: 'Invalid CSRF token' }, 403);
+                     }
+                 } catch {
+                     return jsonResponse({ error: 'Invalid authentication' }, 401);
+                 }
              }
         }
 
@@ -591,9 +699,29 @@ export default {
 		// GET /api/session
 		if (url.pathname === '/api/session' && method === 'GET') {
 			try {
+				const authHeader = request.headers.get('Authorization');
+				if (!authHeader || !authHeader.startsWith('Bearer ')) {
+					return jsonResponse({ valid: false }, 401);
+				}
+				const token = authHeader.split(' ')[1];
+
+				// Verify token and get payload
 				const userPayload = await authenticate(request);
+
+				// Extract jti from JWT to get CSRF token
+				const { payload: jwtPayload } = await jwtVerify(token, security.getJwtSecret());
+				const jti = jwtPayload.jti as string;
+
+				// Get CSRF token from session
+				const session = await env.forum_db.prepare(
+					'SELECT csrf_token FROM sessions WHERE jti = ?'
+				).bind(jti).first();
+
+				const csrfToken = session?.csrf_token || null;
+
 				return jsonResponse({
 					valid: true,
+					csrfToken,
 					user: {
 						id: userPayload.id,
 						email: userPayload.email,
@@ -682,8 +810,8 @@ export default {
 					return jsonResponse({ error: 'Please verify your email first' }, 403);
 				}
 
-				const passwordHash = await hashPassword(password);
-				if (user.password !== passwordHash) {
+				const verification = await verifyPassword(password, user.password);
+				if (!verification.valid) {
 					return jsonResponse({ error: 'Username or Password Error' }, 401);
 				}
 
@@ -706,6 +834,13 @@ export default {
 					}
 				}
 
+				// Auto-upgrade password from old SHA-256 format to PBKDF2
+				let passwordHashToStore = user.password;
+				if (verification.needsUpgrade) {
+					passwordHashToStore = await hashPassword(password);
+					await env.forum_db.prepare('UPDATE users SET password = ? WHERE id = ?').bind(passwordHashToStore, user.id).run();
+				}
+
 				const sessionTtlDays = await getSessionTtlDays();
 				const sessionTtlSeconds = sessionTtlDays * 24 * 60 * 60;
 				const { token, jti, expiresAt } = await security.generateToken(
@@ -716,12 +851,14 @@ export default {
 					},
 					sessionTtlSeconds
 				);
+				const csrfToken = security.generateCsrfToken();
 
-				await env.forum_db.prepare('INSERT INTO sessions (jti, user_id, expires_at) VALUES (?, ?, ?)').bind(jti, user.id, expiresAt).run();
+				await env.forum_db.prepare('INSERT INTO sessions (jti, user_id, expires_at, csrf_token) VALUES (?, ?, ?, ?)').bind(jti, user.id, expiresAt, csrfToken).run();
 				await security.logAudit(user.id, 'LOGIN', 'user', String(user.id), { email }, request);
 
 				return jsonResponse({
 					token,
+					csrfToken,
 					user: {
 						id: user.id,
 						email: user.email,
@@ -1757,11 +1894,15 @@ export default {
 			}
 		}
 
-		// GET /users
+		// GET /users - Admin only
 		if (url.pathname === '/api/users' && method === 'GET') {
 			try {
+				const userPayload = await authenticate(request);
+				if (userPayload.role !== 'admin') {
+					return jsonResponse({ error: 'Unauthorized - Admin only' }, 403);
+				}
 				const { results } = await env.forum_db.prepare(
-					'SELECT id, email, username, created_at FROM users'
+					'SELECT id, email, username, created_at, role, verified FROM users'
 				).all();
 				return jsonResponse(results);
 			} catch (e) {

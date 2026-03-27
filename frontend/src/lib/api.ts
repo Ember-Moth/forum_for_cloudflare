@@ -1,4 +1,4 @@
-import { getToken, logout } from '@/lib/auth';
+import { getToken, getCsrfToken, logout } from '@/lib/auth';
 
 export type ForumConfig = {
 	turnstile_enabled: boolean;
@@ -21,6 +21,7 @@ export type AdminSettings = {
 
 export type SessionInfo = {
 	valid: boolean;
+	csrfToken?: string;
 	user: {
 		id: number;
 		email: string;
@@ -94,6 +95,11 @@ export function getSecurityHeaders(method: string, contentType: string | null = 
 	if (['POST', 'PUT', 'DELETE'].includes(method.toUpperCase())) {
 		headers['X-Timestamp'] = Math.floor(Date.now() / 1000).toString();
 		headers['X-Nonce'] = crypto.randomUUID();
+		// Add CSRF token for authenticated requests
+		const csrfToken = getCsrfToken();
+		if (csrfToken && token) {
+			headers['X-CSRF-Token'] = csrfToken;
+		}
 	}
 	if (contentType) headers['Content-Type'] = contentType;
 	return headers;

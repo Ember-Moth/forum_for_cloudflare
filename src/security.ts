@@ -118,4 +118,35 @@ export class Security {
             'INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)'
         ).bind(userId, action, resourceType, resourceId, JSON.stringify(details), ip).run();
     }
+
+    // 5. CSRF Protection - Generate random CSRF token
+    generateCsrfToken(): string {
+        return crypto.randomUUID();
+    }
+
+    // 6. CSRF Protection - Validate token against session
+    async validateCsrfToken(jti: string, csrfTokenFromRequest: string | null): Promise<boolean> {
+        if (!csrfTokenFromRequest) {
+            return false;
+        }
+        const session = await this.env.forum_db.prepare(
+            'SELECT csrf_token FROM sessions WHERE jti = ?'
+        ).bind(jti).first();
+        if (!session || !session.csrf_token) {
+            return false;
+        }
+        return session.csrf_token === csrfTokenFromRequest;
+    }
+
+    // 7. Invalidate all sessions for user (e.g., password change)
+    async invalidateAllSessionsForUser(userId: number): Promise<void> {
+        await this.env.forum_db.prepare(
+            'DELETE FROM sessions WHERE user_id = ?'
+        ).bind(userId).run();
+    }
+
+    // Get the encoded secret for jwtVerify (used by /api/session to extract jti)
+    getJwtSecret(): Uint8Array {
+        return this.secret;
+    }
 }
