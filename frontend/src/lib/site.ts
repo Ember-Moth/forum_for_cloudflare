@@ -1,2 +1,2 @@
-export const SITE_NAME = 'AcoFork Forum';
-export const SITE_ICON_URL = 'https://q2.qlogo.cn/headimg_dl?dst_uin=2726730791&spec=0';
+export const SITE_NAME = 'Messiah Forum';
+export const SITE_ICON_URL = 'https://cdn.jsdmirror.com/gh/next-theme/hexo-theme-next@master/source/images/logo.svg';
