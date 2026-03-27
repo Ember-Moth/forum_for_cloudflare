@@ -28,6 +28,9 @@ export default defineConfig({
 			}
 		}
 	},
+	optimizeDeps: {
+		include: ['@uiw/react-markdown-preview/markdown.css', '@uiw/react-md-editor/markdown-editor.css']
+	},
 	resolve: {
 		alias: {
 			'@': path.resolve(__dirname, 'src'),
