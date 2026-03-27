@@ -171,3 +171,5 @@ dist
 .wrangler/
 
 /public
+pnpm-lock.yaml
+pnpm-workspace.yaml
