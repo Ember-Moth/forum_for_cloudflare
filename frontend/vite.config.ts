@@ -10,7 +10,7 @@ export default defineConfig({
 	plugins: [react()],
 	root: path.resolve(__dirname, 'pages'),
 	publicDir: false,
-	base: './',
+	base: 'https://forum.messiah.icu/',
 	build: {
 		outDir: path.resolve(__dirname, '..', 'public'),
 		emptyOutDir: true,
